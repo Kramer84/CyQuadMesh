@@ -1,4 +1,4 @@
-# distutils: language = c++
+    # distutils: language = c++
 import cython
 from scipy.spatial import kdtree, Rectangle
 import numpy as np
@@ -64,6 +64,10 @@ cdef class quadMeshProcessing :
         """Here we have to check, for each face, which faces share the same nodes
         """
         pass
+
+    def rebaseVertices(self):
+        outputs = self.getRebasedVerticesAndLabelMap()
+        return outputs
 
 
     def getGlobalBounds(self):
@@ -240,9 +244,6 @@ cdef class quadMeshProcessing :
         if inDiagIdx >= 0 :
             return basic_indexing
 
-        #else :
-        #    raise Exception("Shit happened")
-        
     #########################################################################
 
     @cython.wraparound(False)
@@ -260,6 +261,32 @@ cdef class quadMeshProcessing :
         self.vquads.clear()
         self.quads_mv = nquads.astype(dtype="float64", subok=True, copy=False)
         return nquads  
+
+    #########################################################################
+    @cython.wraparound(False)
+    @cython.boundscheck(False)
+    cdef getRebasedVerticesAndLabelMap(self):
+        """This function is because we can build the mesh by passing a list of vertices
+        having more vertices then those used in faces. Herewe drop all
+        unused vertices, and return a reconstructed label map and vertex array
+        """
+        cdef size_t i, n_vertices
+        cdef int idx
+
+        cdef np.ndarray[int, ndim=1] unique_vertex_labels = np.unique(np.ndarray.flatten(self.faces.astype('int32')))
+
+        n_vertices = unique_vertex_labels.shape[0]
+
+        cdef np.ndarray[double, ndim=2] rebased_vertices = np.zeros(shape=(n_vertices, 3), dtype = "float64")
+        cdef np.ndarray[int, ndim=1] new_label_map = np.zeros(shape=(n_vertices, ), dtype = "int32")
+
+        for i in range(n_vertices):
+            lbl = unique_vertex_labels[i] # Label of vertex
+            idx = np.argwhere(self.vertices_label_map == lbl)[0]     # Idx if vertex
+            new_label_map[i] = lbl
+            rebased_vertices[i,:] = self.vertices[idx,:]
+
+        return rebased_vertices, new_label_map
 
 #############################################################################
 
