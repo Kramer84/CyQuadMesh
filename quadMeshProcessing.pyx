@@ -249,7 +249,7 @@ cdef class quadMeshProcessing :
     @cython.wraparound(False)
     @cython.boundscheck(False)
     cdef getQuads(self):
-        cdef int[:] fs = np.asarray(self.faces_mv.shape)
+        cdef int[:] fs = np.array(self.faces_mv.shape, dtype=int)
         cdef np.ndarray[np.float64_t, ndim=3] nquads = np.zeros(shape=(fs[0], fs[1], 3), dtype = "float64")
         cdef size_t i, j, p
 
@@ -273,7 +273,7 @@ cdef class quadMeshProcessing :
         unused vertices, and return a reconstructed label map and vertex array
         """
         cdef size_t i, n_vertices
-        cdef int idx
+        cdef int idx, lbl
 
         cdef np.ndarray[int, ndim=1] unique_vertex_labels = np.unique(np.ndarray.flatten(self.faces.astype('int32')))[ ~ np.isnan(np.unique(np.ndarray.flatten(self.faces.astype('int32')))) ]
 
@@ -285,14 +285,10 @@ cdef class quadMeshProcessing :
         print('n_vertices   MF:',n_vertices)
 
         for i in range(n_vertices):
-                try :
-                    lbl = unique_vertex_labels[i] # Label of vertex
-                    idx = np.argwhere(self.vertices_label_map == lbl)[0]     # Idx if vertex
-                    new_label_map[i] = lbl
-                    rebased_vertices[i,:] = self.vertices[idx,:]
-                except  Exception as e:
-                    print("Somethin happened !!!!!!!")
-                    raise e
+                lbl = unique_vertex_labels[i] # Label of vertex
+                idx = np.argwhere(self.vertices_label_map == lbl)[0]     # Idx if vertex
+                new_label_map[i] = lbl
+                rebased_vertices[i,:] = self.vertices[idx,:]
 
         return rebased_vertices, new_label_map
 
