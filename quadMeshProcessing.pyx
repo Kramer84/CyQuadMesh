@@ -342,7 +342,7 @@ cdef bool IntListComparison(Py_ssize_t[:] l1, Py_ssize_t[:] l2, size_t length) n
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef vector[vector[vector[double]]] cgetQuads(int[:,:] faces_mv,
-               int[:] fs, double[:,:] verts_mv, int[:] verts_label_map_mv) nogil:
+               size_t[2] fs, double[:,:] verts_mv, int[:] verts_label_map_mv) nogil:
     cdef: 
         size_t idx, i, j
         vector[vector[vector[double]]] vquads
