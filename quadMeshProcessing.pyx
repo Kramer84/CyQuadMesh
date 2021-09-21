@@ -249,7 +249,7 @@ cdef class quadMeshProcessing :
     @cython.wraparound(False)
     @cython.boundscheck(False)
     cdef getQuads(self):
-        cdef size_t[:] fs = np.asarray(self.faces_mv.shape, dtype = "uint64_t")
+        cdef size_t[:] fs = np.asarray(self.faces_mv.shape, dtype = np.uintp)
         cdef np.ndarray[np.float64_t, ndim=3] nquads = np.zeros(shape=(fs[0], fs[1], 3), dtype = "float64")
         cdef size_t i, j, p
         self.vquads.clear()
