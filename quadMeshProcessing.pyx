@@ -275,12 +275,14 @@ cdef class quadMeshProcessing :
         cdef size_t i, n_vertices
         cdef int idx
 
-        cdef np.ndarray[int, ndim=1] unique_vertex_labels = np.unique(np.ndarray.flatten(self.faces.astype('int32')))
+        cdef np.ndarray[int, ndim=1] unique_vertex_labels = np.unique(np.ndarray.flatten(self.faces.astype('int32')))[ ~ np.isnan(np.unique(np.ndarray.flatten(self.faces.astype('int32')))) ]
 
         n_vertices = unique_vertex_labels.shape[0]
 
         cdef np.ndarray[double, ndim=2] rebased_vertices = np.zeros(shape=(n_vertices, 3), dtype = "float64")
         cdef np.ndarray[int, ndim=1] new_label_map = np.zeros(shape=(n_vertices, ), dtype = "int32")
+
+        print('n_vertices   MF:',n_vertices)
 
         for i in range(n_vertices):
             lbl = unique_vertex_labels[i] # Label of vertex
