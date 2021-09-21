@@ -253,7 +253,7 @@ cdef class quadMeshProcessing :
         cdef np.ndarray[np.float64_t, ndim=3] nquads = np.zeros(shape=(fs[0], fs[1], 3), dtype = "float64")
         cdef size_t i, j, p
 
-
+        print('Still ok')
         self.vquads.clear()
         self.vquads = cgetQuads(self.faces_mv, fs, self.verts_mv, self.verts_label_map_mv)
         for i in range(fs[0]):
