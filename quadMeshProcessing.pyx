@@ -285,10 +285,14 @@ cdef class quadMeshProcessing :
         print('n_vertices   MF:',n_vertices)
 
         for i in range(n_vertices):
-            lbl = unique_vertex_labels[i] # Label of vertex
-            idx = np.argwhere(self.vertices_label_map == lbl)[0]     # Idx if vertex
-            new_label_map[i] = lbl
-            rebased_vertices[i,:] = self.vertices[idx,:]
+                try :
+                    lbl = unique_vertex_labels[i] # Label of vertex
+                    idx = np.argwhere(self.vertices_label_map == lbl)[0]     # Idx if vertex
+                    new_label_map[i] = lbl
+                    rebased_vertices[i,:] = self.vertices[idx,:]
+                except  Exception as e:
+                    print("Somethin happened !!!!!!!")
+                    raise e
 
         return rebased_vertices, new_label_map
 
