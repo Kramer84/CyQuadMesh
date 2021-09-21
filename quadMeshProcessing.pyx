@@ -249,9 +249,13 @@ cdef class quadMeshProcessing :
     @cython.wraparound(False)
     @cython.boundscheck(False)
     cdef getQuads(self):
-        cdef int[:] fs = np.asarray(self.faces_mv.shape, dtype = "int")
+        cdef vector[size_t] fs 
         cdef np.ndarray[np.float64_t, ndim=3] nquads = np.zeros(shape=(fs[0], fs[1], 3), dtype = "float64")
-        cdef int i, j, p
+        cdef size_t i, j, p
+        fs.clear()
+        for i in range(len(self.faces_mv.shape)):
+            fs.push_back(self.faces_mv.shape[i])
+
         self.vquads.clear()
         self.vquads = cgetQuads(self.faces_mv, fs, self.verts_mv, self.verts_label_map_mv)
         for i in range(fs[0]):
@@ -335,7 +339,7 @@ cdef bool IntListComparison(Py_ssize_t[:] l1, Py_ssize_t[:] l2, size_t length) n
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef vector[vector[vector[double]]] cgetQuads(int[:,:] faces_mv,
-               size_t[:] fs, double[:,:] verts_mv, int[:] verts_label_map_mv) nogil:
+               vector[size_t] fs, double[:,:] verts_mv, int[:] verts_label_map_mv) nogil:
     cdef: 
         size_t idx, i, j
         vector[vector[vector[double]]] vquads
