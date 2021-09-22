@@ -283,8 +283,6 @@ cdef class quadMeshProcessing :
         cdef np.ndarray[double, ndim=2] rebased_vertices = np.zeros(shape=(n_vertices, 3), dtype = "float64")
         cdef np.ndarray[int, ndim=1] new_label_map = np.zeros(shape=(n_vertices, ), dtype = "int32")
 
-        print('n_vertices   MF:',n_vertices)
-
         for i in range(n_vertices):
                 lbl = unique_vertex_labels[i] # Label of vertex
                 idx = np.argwhere(self.vertices_label_map == lbl)[0]     # Idx if vertex
