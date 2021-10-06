@@ -121,22 +121,27 @@ cdef class quadMeshProcessing :
         represent a edge (if the perimeter is abcd, we should no have acbd for example)
         """
         cdef size_t i, n_quads
-        cdef Py_ssize_t[4] basic_indexing = [0,1,2,3]
-        cdef Py_ssize_t[:] new_indexing 
+        cdef vector[int] basic_indexing 
+        cdef vector[int] new_indexing 
         cdef double[:,:] quad_mv
         cdef bool isSame
         cdef int isCooplanar
-        cdef SymmetricMatrix quad_distance_matrix = SymmetricMatrix(4)
+        #cdef SymmetricMatrix quad_distance_matrix = SymmetricMatrix(4)
+
+        # Intializing indexing 
+        basic_indexing.clear()
+        new_indexing.clear()
+        for i in range(4):
+            basic_indexing.push_back(i)
 
         n_quads = self.quads_mv.shape[0]
 
         for i in range(n_quads):
             quad_mv = self.quads_mv[i,:,:]
-            new_indexing = self.correct_winding_1face(quad_mv, quad_distance_matrix)
+            new_indexing = self.correct_winding_1face(quad_mv) #, quad_distance_matrix
             isCooplanar = self.checkIfFaceCooplanar(quad_mv)
-            #if isCooplanar == 0 :
-            #    print('Is not cooplanar')
-            isSame = IntListComparison(new_indexing, basic_indexing, 4)
+
+            isSame = IntVectorComparison(new_indexing, basic_indexing, 4)
             if isSame == False :
                 print('\tWe ll switch index 1 and 2...')
                 temp0 = self.faces[i,1]
@@ -173,76 +178,90 @@ cdef class quadMeshProcessing :
             return 1 
         else: 
             return 0
+    
 
-    cdef Py_ssize_t[:] correct_winding_1face(self, double[:,:] quad_face, SymmetricMatrix distance_matrix ):
+    @cython.wraparound(False)
+    @cython.boundscheck(False)
+    @cython.cdivision(True)
+    cdef vector[int] correct_winding_1face(self, double[:,:] quad_face ):
         """Checks the winding for one face and returns the new
-        order of the indices 
+        order of the indices.
+
+        Method : 
+        - We calculate the centroid 
+        - We construct 4 vectors going from the centroid to each edge
+        - We calculate the sign of each consecutive cross_product
+        - We caculate the sum between each permutation of the cross products, and observe the norm of the resulting vector
         """
         cdef :
-            Py_ssize_t[4] basic_indexing = [0,1,2,3]
-            Py_ssize_t[4] new_indexing = [0,1,2,3]
-            Py_ssize_t[8][2] edgeIdx = [[0,1], [1,2], [2,3], [3,0], [1,0], [2,1], [3,2], [0,3]]
-            Py_ssize_t[4][2] diagIdx = [[0,2], [1,3], [2,0], [3,1]]
-            Py_ssize_t[:] e
-            Py_ssize_t[2] arg_max, edge
-            Py_ssize_t[:] arg_max_mv
-            Py_ssize_t[:,:] edgeIdx_mv, diagIdx_mv
-            Py_ssize_t inEdgeIdx, temp0, temp1, inDiagIdx
-            size_t len_l, len_ll, len_diagIdx, i, i_diag, i_diag_idx
-            vector[bool] diff 
-            bool sameVal0, sameVal1
+            size_t i, j
+            int n_are_max = 0 
+            double cross_prod_norm
+            int[2] permut
+            vector[int] basic_indexing = [0,1,2,3]
+            vector[int] new_indexing = [0,1,2,3]
+            size_t[6][2] index_permut = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
+            vector[int] cross_prod_permut_sum_norm_is_max
+            vector[double] centroid, cross_prod_sum, cross_prod_norms, cross_prod_permut_sum_norms, max_norm_cross_prod
+            vector[vector[double]] center_edge_vectors, consecutive_cross_products, cross_prod_permut_sum
 
-        intra_face_distance_matrix(quad_face, distance_matrix)
-        # we keep the first node at the right index, and then we check the distance betwwen the 
-        # different nodes. We know that the max distance represents a diagonal. 
-        # (at least one diagonal is the max) if the quad element is CONVEX
-        arg_max_vec = distance_matrix.cargmax()
-        arg_max[0] = arg_max_vec[0]
-        arg_max[1] = arg_max_vec[1]
-        edgeIdx_mv = edgeIdx
-        diagIdx_mv = diagIdx
-        arg_max_mv = arg_max
+        # Intializing indexing 
+        basic_indexing.clear()
+        new_indexing.clear()
+        for i in range(4):
+            basic_indexing.push_back(i)
+            new_indexing.push_back(i)
 
-        len_l = 2 
-        len_ll = 8
-        len_diagIdx = 4
-        # The maximal distance between two points should never be
-        # between adjacent edges.
-        inEdgeIdx = IntListInNestedIntList(arg_max_mv, edgeIdx_mv, len_l, len_ll )
-        inDiagIdx = IntListInNestedIntList(arg_max_mv, diagIdx_mv, len_l, len_diagIdx )
+        # Clearing C++ vectors
+        centroid.clear()
+        center_edge_vectors.clear()
+        consecutive_cross_products.clear()
+        
 
-        if inEdgeIdx >= 0:
-            # This means  one of the adjacent edges is a diagonal, which of course is impossible.
-            # We have to invert two indices, so that the winding gets correct
-            # We have to replace one of the indices in arg_max, so that arg_max becomes part of 
-            # diagIdx
-            #Now we search the first transform that does the job.
+        centroid = quad_centroid(quad_face)
+        center_edge_vectors = quadCenterEdgeVectors(quad_face, centroid)
+        #Here we will have the 4 consecutive cross products: Element 0 and 1 , 1 and 2, 2 and 3 and 3 and 0
+        for i in range(3):
+            consecutive_cross_products.push_back(cross_product_vect(center_edge_vectors[i],center_edge_vectors[i+1]))
+        # Here for cross product 3 to 0
+        consecutive_cross_products.push_back(cross_product_vect(center_edge_vectors[3],center_edge_vectors[0]))
 
-            edge = edgeIdx[inEdgeIdx]
+        cross_prod_norms.clear()
+        for i in range(4):
+            cross_prod_norms.push_back(norm_vector(consecutive_cross_products[i]))
 
-            for i in range(4):
-                diff.clear()
-                sameVal0 = edge[0]!=diagIdx[i][0]
-                sameVal1 = edge[1]!=diagIdx[i][1] 
-                diff.push_back(sameVal0)
-                diff.push_back(sameVal1)
-                if diff[0] != diff[1]:
-                    i_diag = i
-                    if diff[0] == True:
-                        i_diag_idx = 0
-                    else :
-                        i_diag_idx = 1 
-                diff.clear()
-            
-            #print('We have to switch index',edge[i_diag_idx],'with',diagIdx[i_diag][i_diag_idx])
+        #Now calculating the sums between the cross products:
+        cross_prod_permut_sum.clear()
+        cross_prod_permut_sum_norms.clear()
+        max_norm_cross_prod.clear()
+        cross_prod_permut_sum_norm_is_max.clear()
+        for i in range(6):
+            permut = index_permut[i]
 
-            new_indexing[edge[i_diag_idx]] = basic_indexing[diagIdx[i_diag][i_diag_idx]]
-            new_indexing[diagIdx[i_diag][i_diag_idx]] = basic_indexing[edge[i_diag_idx]]
+            max_norm_cross_prod.push_back(max_doubles(cross_prod_norms[permut[0]], 
+                                                      cross_prod_norms[permut[1]]))
 
+            cross_prod_sum = sum_vectors(consecutive_cross_products[permut[0]], 
+                                         consecutive_cross_products[permut[1]])
+
+            cross_prod_permut_sum.push_back(cross_prod_sum) #Sum of the cross products
+            cross_prod_permut_sum_norms.push_back(norm_vector(cross_prod_sum)) #Norm of the sum of the cross products
+
+            if cross_prod_permut_sum_norms[i] > max_norm_cross_prod[i]:
+                cross_prod_permut_sum_norm_is_max.push_back(1)
+                n_are_max += 1
+
+            else : 
+                cross_prod_permut_sum_norm_is_max.push_back(0)
+                n_are_max += 0
+
+        if  n_are_max == 6 :
             return new_indexing
 
-        if inDiagIdx >= 0 :
-            return basic_indexing
+        else : 
+            print('\t\t\tWinding not OKKKK')
+            return new_indexing
+
 
     #########################################################################
 
@@ -295,7 +314,7 @@ cdef class quadMeshProcessing :
 
 @cython.wraparound(False)
 @cython.boundscheck(False)
-cdef Py_ssize_t IntListInNestedIntList(Py_ssize_t[:] l1, Py_ssize_t[:,:] l2, size_t len_l, size_t len_ll) nogil:
+cdef int IntListInNestedIntList(int[:] l1, int[:,:] l2, size_t len_l, size_t len_ll) nogil:
     # The length is passed as an argument, the length o bost lists
     # is assumed to be the same
     #We assume that there is at most one occurence of l1 in l2
@@ -309,7 +328,7 @@ cdef Py_ssize_t IntListInNestedIntList(Py_ssize_t[:] l1, Py_ssize_t[:,:] l2, siz
 
 @cython.wraparound(False)
 @cython.boundscheck(False)
-cdef bool IntListComparison(Py_ssize_t[:] l1, Py_ssize_t[:] l2, size_t length) nogil:
+cdef bool IntListComparison(int[:] l1, int[:] l2, size_t length) nogil:
     """The length is passed as an argument, the length of both lists
     is assumed to be the same
 
@@ -329,6 +348,33 @@ cdef bool IntListComparison(Py_ssize_t[:] l1, Py_ssize_t[:] l2, size_t length) n
     cdef size_t i
     for i in range(length):
         if l1[i] != l2[i] :
+            return False 
+    return True
+
+#############################################################################
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cdef bool IntVectorComparison(vector[int] V1, vector[int] V2, size_t length) nogil:
+    """The length is passed as an argument, the length of both lists
+    is assumed to be the same
+
+    Arguments
+    ---------
+    l1 : C++ int vetor
+
+    l2 : C++ int vetor
+
+    length : size_t (unsigned indexing integer) 
+        length of both vectors
+
+    Returns
+    -------
+    True if all elements are the same. False otherwise
+    """
+    cdef size_t i
+    for i in range(length):
+        if V1[i] != V2[i] :
             return False 
     return True
 
@@ -522,7 +568,7 @@ cdef vector[double] quadNormal(double[:,:] quad) nogil:
 @cython.boundscheck(False)
 @cython.cdivision(True)
 cdef vector[double] vector2unit(vector[double] vect) nogil:
-    """norm of n dimensional vector
+    """returns a normalized n dimensional vector of sze 1 
     """
     cdef vector[double] unitVector
     cdef size_t _size, i 
@@ -662,4 +708,12 @@ cdef size_t argmax(vector[double] vector_cpp) nogil:
     else :
         return 0
 
-
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cdef double max_doubles(double X0, double X1) nogil:
+    """Function that returrns the maximum value between two doubles
+    """
+    if X0 >= X1:
+        return X0
+    else : 
+        return X1

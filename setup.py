@@ -11,6 +11,6 @@ from Cython.Build import cythonize
 #]
 
 setup(
-    ext_modules=cythonize("quadMeshProcessing.pyx", annotate=True),
+    ext_modules=cythonize("quadMeshProcessing.pyx", annotate=True,language_level=3),
     include_dirs=[numpy.get_include()]
 )
